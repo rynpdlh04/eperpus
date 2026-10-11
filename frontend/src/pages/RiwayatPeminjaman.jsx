@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, ChevronLeft } from 'lucide-react';
+import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 
 function RiwayatPeminjaman() {
@@ -97,46 +98,54 @@ function RiwayatPeminjaman() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-500">
-          Memuat riwayat peminjaman...
-        </p>
+      <div className="page-enter min-h-screen bg-[#f4f8fd] pb-24 md:pb-0">
+        <Header />
+        <Sidebar />
+        <main className="flex min-h-[calc(100vh-68px)] items-center justify-center px-4 text-center md:ml-64">
+          <p className="text-sm font-medium text-[#7892ad]">Memuat riwayat peminjaman...</p>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen sm:ml-64 bg-sky-50 p-6">
+    <div className="page-enter min-h-screen bg-[#f4f8fd] pb-24 md:pb-0">
+      <Header />
       <Sidebar />
-      
-      <div className="fixed top-0 left-0 sm:left-64 right-0 flex justify-between items-center mb-10 px-6 py-6 bg-white/30 backdrop-blur-lg">
-            <Link
-            to={`/`}
-            className="flex gap-3 text-gray-500 hover:text-gray-700"
-            >
-              <ChevronLeft size={30} />
-            </Link>
-        </div>
 
-      <div className="mx-auto max-w-5xl mt-20">
-        <div className="mt-6">
+      <main className="mx-auto max-w-7xl px-4 py-6 md:ml-64 md:px-6">
+        <Link to="/" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-[#5b8fbd] transition hover:text-[#315f92]">
+          <ChevronLeft size={18} />
+          Kembali ke koleksi
+        </Link>
 
-          <h1 className="text-3xl font-bold">
+        <div>
+
+          <h1 className="text-3xl font-bold text-[#29465f]">
             Riwayat Peminjaman
           </h1>
 
-          <p className="mt-2 text-gray-500">
+          <p className="mt-2 text-[#7892ad]">
             Daftar buku yang sedang dan pernah dipinjam.
           </p>
 
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="rounded-lg bg-[#fff5df] px-3 py-1.5 text-xs font-semibold text-[#96712e]">
+              {peminjaman.filter((item) => item.status === "dipinjam").length} sedang dipinjam
+            </span>
+            <span className="rounded-lg bg-[#edf8f1] px-3 py-1.5 text-xs font-semibold text-[#4d8762]">
+              {peminjaman.filter((item) => item.status === "dikembalikan").length} selesai
+            </span>
+          </div>
+
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-4 ">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
 
           {peminjaman.length === 0 ? (
 
-            <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
-              <p className="text-gray-500">
+            <div className="rounded-xl border border-dashed border-[#cbdceb] bg-white/70 p-10 text-center">
+              <p className="text-sm text-[#7892ad]">
                 Belum ada data peminjaman.
               </p>
             </div>
@@ -147,75 +156,57 @@ function RiwayatPeminjaman() {
 
               <div
                 key={item.id}
-                className="min-w-0 w-75 overflow-hidden p-3 rounded-2xl bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                className="min-w-0 overflow-hidden rounded-xl border border-[#dce7f1] bg-white p-4 transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-[#bfd4e8] hover:shadow-[0_8px_22px_rgba(54,96,139,.08)] motion-reduce:transition-none"
               >
 
                 <div className="">
 
                   <div>
 
-                    <h2 className="text-lg font-bold">
+                    <h2 className="line-clamp-2 text-base font-bold leading-6 text-[#29465f]">
                       {item.judul}
                     </h2>
 
-                    <p className="mt-1 text-sm text-gray-500">
-                      Kode buku: {item.kode_buku}
+                    <p className="mt-1 text-xs text-[#7892ad]">
+                      {item.kode_buku}
                     </p>
 
-                    <p className="my-3 text-sm">
-                      Peminjam:{" "}
-                      <span className="font-medium">
+                    <p className="mt-3 text-xs text-[#7892ad]">
+                      Peminjam <span className="font-semibold text-[#456b8c]">
                         {item.nama_peminjam}
                       </span>
                     </p>
 
                   </div>
 
-                  <div className="text-sm">
+                  <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-[#f7faff] p-3 text-xs">
 
-                    <div className="flex justify-between">
-                      <p className="text-gray-500">
-                      Tanggal Pinjam
-                    </p>
-                    
-
-                    <p className="font-medium">
-                      {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID')}
-                    </p>
+                    <div className="min-w-0">
+                      <p className="leading-4 text-[#7892ad]">Tanggal Pinjam</p>
+                      <p className="mt-1 font-semibold tabular-nums text-[#405b75]">
+                        {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID')}
+                      </p>
                     </div>
 
-                    <div className="flex justify-between items-center">
-                      <p className="mt-2 text-gray-500">
-                      Batas Pengembalian
-                    </p>
-
-                    <p className="font-medium">
-                      {new Date(item.tanggal_kembali).toLocaleDateString('id-ID')}
-                    </p>
+                    <div className="min-w-0">
+                      <p className="leading-4 text-[#7892ad]">Batas Kembali</p>
+                      <p className="mt-1 font-semibold tabular-nums text-[#405b75]">
+                        {new Date(item.tanggal_kembali).toLocaleDateString('id-ID')}
+                      </p>
                     </div>
 
                   </div>
 
-                 <div className="flex flex-col items-start gap-3">
+                 <div className="mt-4">
 
                   {item.status === "dipinjam" ? (
-                    <div className="flex justify-between gap-4 mt-2 mx-auto">
-                      <span className="rounded-xl bg-yellow-100 px-3 py-2 text-xs font-medium text-yellow-700">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e8eff6] pt-4">
+                      <span className="rounded-md bg-[#fff5df] px-2.5 py-1.5 text-[11px] font-semibold text-[#96712e]">
                         Sedang dipinjam
                       </span>
-
-                      <button
-                        onClick={() => handleKembalikan(item.id)}
-                        disabled={prosessingId === item.id}
-                        className="rounded-xl bg-sky-500 px-4 py-2 text-xs font-medium text-white transition hover:bg-sky-400 disabled:opacity-50"
-                      >
-                        {prosessingId === item.id
-                          ? "Mengembalikan..."
-                          : "Kembalikan Buku"}
-                      </button>
                     </div>
                   ) : (
-                    <span className="rounded-xl bg-green-100 px-3 py-2 text-xs font-medium text-green-700">
+                    <span className="inline-flex items-center rounded-md bg-[#edf8f1] px-2.5 py-1.5 text-[11px] font-semibold text-[#4d8762]">
                       <Check className="inline mr-2"/> Dikembalikan
                     </span>
                   )}
@@ -232,7 +223,7 @@ function RiwayatPeminjaman() {
 
         </div>
 
-      </div>
+      </main>
 
     </div>
   );

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Plus,
   Pencil,
@@ -10,13 +10,26 @@ import {
 } from "lucide-react";
 
 import AdminSidebar from "../components/AdminSidebar";
+import ConfirmDialog from "../components/ConfirmDialog";
+import useSidebarLayout from "../contexts/useSidebarLayout";
 
 function AdminBuku() {
+  const navigate = useNavigate();
+  const { adminSidebarCollapsed } = useSidebarLayout();
 
+  const API_URL = import.meta.env.VITE_API_URL;
   const [buku, setBuku] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [bookToDelete, setBookToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [pagination, setPagination] = useState({
+  page: 1,
+  limit: 10,
+  total: 0,
+  totalPages: 0
+});
 
   const [formData, setFormData] = useState({
     judul: "",
@@ -53,28 +66,8 @@ function AdminBuku() {
 };
 
   // fungsi untuk menghandle perubahan
- const handleEdit = (book) => {
-  setEditingBook(book);
-
-  setCoverFile(null);
-
-  setCoverPreview(
-    book.cover
-      ? getCoverUrl(book.cover)
-      : ""
-  );
-
-  setFormData({
-    judul: book.judul || "",
-    penulis: book.penulis || "",
-    penerbit: book.penerbit || "",
-    tahun: book.tahun || "",
-    kode_buku: book.kode_buku || "",
-    kategori: book.kategori || "",
-    deskripsi: book.deskripsi || "",
-    stock: book.stock || 0,
-    cover: book.cover || ""
-    });
+  const handleEdit = (book) => {
+    navigate(`/admin/buku/${book.id}/edit`);
   };
 
   // fungsi untuk menghandle update
@@ -89,10 +82,10 @@ const handleUpdate = async (event) => {
 
     // =========================
     // 1. UPDATE DATA BUKU
-    // =========================
+    // =========================${
 
     const response = await fetch(
-      `http://localhost:3000/api/admin/buku/${editingBook.id}`,
+      `${API_URL}/api/admin/buku/${editingBook.id}`,
       {
         method: "PUT",
         headers: {
@@ -126,7 +119,7 @@ const handleUpdate = async (event) => {
       uploadData.append("cover", coverFile);
 
       const uploadResponse = await fetch(
-        `http://localhost:3000/api/admin/buku/${editingBook.id}/cover`,
+        `${API_URL}/api/admin/buku/${editingBook.id}/cover`,
         {
           method: "POST",
           headers: {
@@ -166,7 +159,7 @@ const handleUpdate = async (event) => {
       cover: ""
     });
 
-    fetchBuku();
+    fetchBuku(pagination.page, search);
 
   } catch (error) {
     console.error(error);
@@ -177,20 +170,15 @@ const handleUpdate = async (event) => {
   }
 };
   
-  const handleDelete = async (book) => {
-  const yakin = window.confirm(
-    `Apakah Anda yakin ingin menghapus buku "${book.judul}"?`
-  );
+  const handleDelete = async () => {
+  if (!bookToDelete) return;
 
-  if (!yakin) {
-    return;
-  }
-
+  setDeleting(true);
   try {
     const token = localStorage.getItem("token");
 
     const response = await fetch(
-      `http://localhost:3000/api/admin/buku/${book.id}`,
+      `${API_URL}/api/admin/buku/${bookToDelete.id}`,
       {
         method: "DELETE",
         headers: {
@@ -207,56 +195,68 @@ const handleUpdate = async (event) => {
       );
     }
 
-    alert("Buku berhasil dihapus");
-
-    fetchBuku();
+    setBookToDelete(null);
+    const nextPage = buku.length === 1 && pagination.page > 1
+      ? pagination.page - 1
+      : pagination.page;
+    fetchBuku(nextPage, search);
 
   } catch (error) {
     console.error(error);
     alert(error.message);
+  } finally {
+    setDeleting(false);
   }
 };
 
-  const fetchBuku = async () => {
+const fetchBuku = useCallback(async (page, searchValue) => {
+  try {
+    setLoading(true);
 
-    try {
+    const token = localStorage.getItem("token");
 
-      const token = localStorage.getItem("token");
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: "10",
+      search: searchValue
+    });
 
-      const response = await fetch(
-        "http://localhost:3000/api/admin/buku",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+    const response = await fetch(
+      `${API_URL}/api/admin/buku?${params}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Gagal mengambil data buku"
-        );
       }
+    );
 
-      setBuku(data);
+    const data = await response.json();
 
-    } catch (error) {
-
-      console.error(error);
-      alert(error.message);
-
-    } finally {
-
-      setLoading(false);
-
+    if (!response.ok) {
+      throw new Error(
+        data.message || "Gagal mengambil data buku"
+      );
     }
-  };
 
-  useEffect(() => {
-    fetchBuku();
-  }, []);
+    setBuku(data.data);
+
+    setPagination(data.pagination);
+
+  } catch (error) {
+    console.error(error);
+    alert(error.message);
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
+useEffect(() => {
+  const timer = setTimeout(() => {
+    fetchBuku(1, search);
+  }, 400);
+
+  return () => clearTimeout(timer);
+}, [fetchBuku, search]);
 
 
   // Filter pencarian
@@ -295,7 +295,7 @@ const handleUpdate = async (event) => {
     // =========================
 
     const response = await fetch(
-      "http://localhost:3000/api/admin/buku",
+      `${API_URL}/api/admin/buku`,
       {
         method: "POST",
         headers: {
@@ -329,7 +329,7 @@ const handleUpdate = async (event) => {
       uploadData.append("cover", coverFile);
 
       const uploadResponse = await fetch(
-        `http://localhost:3000/api/admin/buku/${data.id}/cover`,
+        `${API_URL}/api/admin/buku/${data.id}/cover`,
         {
           method: "POST",
           headers: {
@@ -369,7 +369,7 @@ const handleUpdate = async (event) => {
     setCoverFile(null);
     setCoverPreview("");
 
-    fetchBuku();
+    fetchBuku(pagination.page, search);
 
   } catch (error) {
     console.error(error);
@@ -389,15 +389,15 @@ const handleUpdate = async (event) => {
     return cover;
   }
 
-  return `http://localhost:3000${cover}`;
+  return `${API_URL}${cover}`;
   };  
 
   return (
-    <div className="min-h-screen bg-sky-50 md:ml-64">
+    <div className={`page-enter min-h-screen bg-[#f4f8fd] pb-24 md:pb-6 ${adminSidebarCollapsed ? "md:ml-19.5" : "md:ml-58"}`}>
 
       <AdminSidebar />
 
-      <main className="p-6">
+      <main className="p-4 sm:p-6">
 
         <div className="mx-auto max-w-7xl">
 
@@ -408,17 +408,18 @@ const handleUpdate = async (event) => {
 
               <Link
                 to="/admin"
-                className="mb-3 flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-[#7892ad] transition-colors hover:text-[#315f92]"
               >
                 <ArrowLeft size={18} />
                 Kembali ke Dashboard
               </Link>
 
-              <h1 className="text-3xl font-bold">
+              <p className="text-xs font-bold uppercase tracking-[.14em] text-[#7194b2]">Koleksi administrasi</p>
+              <h1 className="mt-2 text-3xl font-bold text-[#29465f]">
                 Kelola Buku
               </h1>
 
-              <p className="mt-1 text-gray-500">
+              <p className="mt-2 text-sm text-[#7892ad]">
                 Kelola koleksi buku perpustakaan.
               </p>
 
@@ -426,30 +427,13 @@ const handleUpdate = async (event) => {
 
 
             {/* Tombol tambah */}
-            <button
-              onClick={() => {
-                setFormData({
-                  judul: "",
-                  penulis: "",
-                  penerbit: "",
-                  tahun: "",
-                  kode_buku: "",
-                  kategori: "",
-                  deskripsi: "",
-                  stock: 0,
-                  cover: ""
-                });
-
-                setCoverFile(null);
-                setCoverPreview("");
-
-                setShowForm(true);
-              }}
-              className="flex items-center justify-center gap-2 rounded-xl bg-sky-500 px-5 py-3 text-sm font-medium text-white transition hover:bg-sky-400"
+            <Link
+              to="/admin/buku/tambah"
+              className="flex items-center justify-center gap-2 rounded-lg bg-[#5b8fbd] px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#4e7fab]"
             >
               <Plus size={18} />
               Tambah Buku
-            </button>
+            </Link>
 
           </div>
 
@@ -469,20 +453,20 @@ const handleUpdate = async (event) => {
               onChange={(event) =>
                 setSearch(event.target.value)
               }
-              className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 outline-none transition focus:border-sky-400"
+              className="h-11 w-full rounded-lg border border-[#d7e4f0] bg-white pl-11 pr-4 text-sm text-[#405b75] outline-none transition focus:border-[#8bb3da] focus:ring-4 focus:ring-[#e7f1fb]"
             />
 
           </div>
 
 
           {/* JUMLAH DATA */}
-          <div className="mt-4 text-sm text-gray-500">
-            Menampilkan {filteredBuku.length} dari {buku.length} buku
+          <div className="mt-4 text-xs font-medium text-[#7892ad]">
+            {pagination.total.toLocaleString("id-ID")} buku dalam koleksi
           </div>
 
 
           {/* TABLE */}
-          <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+          <div className="admin-table-wrap mt-4">
 
             {loading ? (
 
@@ -500,7 +484,7 @@ const handleUpdate = async (event) => {
 
               <div className="overflow-x-auto">
 
-                <table className="w-full text-left">
+                <table className="admin-table">
 
                   <thead className="border-b bg-gray-50">
 
@@ -537,7 +521,7 @@ const handleUpdate = async (event) => {
 
                       <tr
                         key={item.id}
-                        className="transition hover:bg-gray-50"
+                        className="transition-colors duration-150"
                       >
 
                         {/* BUKU */}
@@ -545,7 +529,7 @@ const handleUpdate = async (event) => {
 
                           <div className="flex items-center gap-4">
 
-                            <div className="flex h-14 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+                            <div className="flex h-14 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#edf4fa]">
 
                               {item.cover ? (
 
@@ -568,15 +552,15 @@ const handleUpdate = async (event) => {
 
                             <div>
 
-                              <p className="font-semibold">
+                              <p className="font-semibold text-[#29465f]">
                                 {item.judul}
                               </p>
 
-                              <p className="mt-1 text-xs text-gray-500">
+                              <p className="mt-1 text-xs text-[#7892ad]">
                                 {item.penulis}
                               </p>
 
-                              <p className="mt-1 text-xs text-gray-400">
+                              <p className="mt-1 text-[11px] font-medium text-[#9aabb9]">
                                 {item.kode_buku}
                               </p>
 
@@ -590,7 +574,7 @@ const handleUpdate = async (event) => {
                         {/* KATEGORI */}
                         <td className="px-5 py-4">
 
-                          <span className="rounded-lg bg-gray-100 px-3 py-1 text-xs font-medium">
+                          <span className="rounded-md bg-[#edf4fb] px-2.5 py-1 text-[11px] font-semibold text-[#4e7fab]">
                             {item.kategori}
                           </span>
 
@@ -609,8 +593,8 @@ const handleUpdate = async (event) => {
                           <span
                             className={`font-semibold ${
                               item.stock > 0
-                                ? "text-green-600"
-                                : "text-red-500"
+                                ? "rounded-md bg-[#edf8f1] px-2.5 py-1 text-xs text-[#4d8762]"
+                                : "rounded-md bg-[#fff0f1] px-2.5 py-1 text-xs text-[#bd6f72]"
                             }`}
                           >
                             {item.stock}
@@ -626,15 +610,15 @@ const handleUpdate = async (event) => {
 
                             <button
                               onClick={()=>handleEdit(item)}
-                              className="rounded-lg p-2 text-gray-500 transition hover:bg-sky-50 hover:text-sky-500"
+                              className="rounded-lg p-2 text-[#7892ad] transition-colors duration-150 hover:bg-[#eaf4ff] hover:text-[#315f92]"
                               title="Edit buku"
                             >
                               <Pencil size={18} />
                             </button>
 
                             <button
-                              onClick={()=> handleDelete(item)}
-                              className="rounded-lg p-2 text-gray-500 transition hover:bg-red-50 hover:text-red-500"
+                              onClick={() => setBookToDelete(item)}
+                              className="rounded-lg p-2 text-[#9aabb9] transition-colors duration-150 hover:bg-[#fff0f1] hover:text-[#bd6f72]"
                               title="Hapus buku"
                             >
                               <Trash2 size={18} />
@@ -650,11 +634,61 @@ const handleUpdate = async (event) => {
 
                   </tbody>
 
-                </table>
+                  </table>
+                    
+                  <div className="mt-3 flex items-center px-10 mb-3 justify-between">
+                  <p className="text-sm text-gray-500">
+                    Menampilkan{" "}
+                    {filteredBuku.length > 0
+                      ? (pagination.page - 1) * pagination.limit + 1
+                      : 0}
+                    {" - "}
+                    {(pagination.page - 1) * pagination.limit +
+                      filteredBuku.length}
+                    {" dari "}
+                    {pagination.total} buku
+                  </p>
 
+                  <div className="flex items-center gap-2">
+                    <button
+                      disabled={pagination.page === 1}
+                      onClick={() =>
+                        fetchBuku(
+                          pagination.page - 1,
+                          search
+                        )
+                      }
+                      className="rounded-lg border border-gray-200 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Sebelumnya
+                    </button>
+
+                    <span className="px-3 text-sm font-medium">
+                      {pagination.page} / {pagination.totalPages}
+                    </span>
+
+                    <button
+                      disabled={
+                        pagination.page === pagination.totalPages ||
+                        pagination.totalPages === 0
+                      }
+                      onClick={() =>
+                        fetchBuku(
+                          pagination.page + 1,
+                          search
+                        )
+                      }
+                      className="rounded-lg border border-gray-200 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Berikutnya
+                    </button>
+                  </div>
+                </div>
+                    
               </div>
 
             )}
+            
 
           </div>
 
@@ -1194,8 +1228,17 @@ const handleUpdate = async (event) => {
     </div>
 
   </div>
-)}      
+)}
 
+      <ConfirmDialog
+        open={Boolean(bookToDelete)}
+        title="Hapus buku dari koleksi?"
+        description={bookToDelete ? `Buku “${bookToDelete.judul}” akan dihapus. Tindakan ini tidak dapat dibatalkan.` : ""}
+        confirmLabel="Hapus buku"
+        busy={deleting}
+        onCancel={() => setBookToDelete(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

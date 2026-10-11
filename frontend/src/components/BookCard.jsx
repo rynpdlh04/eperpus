@@ -1,46 +1,60 @@
-import { Link } from "react-router-dom"
-
+import { Link } from "react-router-dom";
+import { BookOpen } from "lucide-react";
+const API_URL = import.meta.env.VITE_API_URL;
 export default function BookCard({ buku }) {
+    const coverUrl = buku.cover && /^(https?:|data:)/i.test(buku.cover)
+        ? buku.cover
+        : buku.cover
+            ? `${API_URL}${buku.cover}`
+            : "";
+
     return (
-        <div key={buku.id} className="min-w-0 overflow-hidden rounded-2xl bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-            
-            {/* Cover Buku disini deh */}
-            <div className="flex h-64 items-center justify-center bg-gray-100">
+        <article className="min-w-0 overflow-hidden rounded-xl border border-[#dce7f1] bg-white shadow-[0_2px_10px_rgba(54,96,139,.045)] transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-[#bfd4e8] hover:shadow-[0_8px_22px_rgba(54,96,139,.09)] motion-reduce:transition-none">
+            <div className="aspect-4/5 overflow-hidden bg-[#edf4fa]">
                 {buku.cover ? (
                     <img
-                        src={buku.cover}
+                        src={coverUrl}
                         alt={`Cover ${buku.judul}`}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
                     />
                 ) : (
-                        <div className="text-center text-gray-400">
-                            <p className="text-4xl">📖</p>
-                            <p className="mt-2 text-sm">Preview cover belum tersedia</p>
+                    <div className="flex h-full flex-col items-center justify-center text-[#93a8bc]">
+                        <BookOpen size={30} strokeWidth={1.6} />
+                        <p className="mt-2 text-xs">
+                            Preview cover belum tersedia
+                        </p>
                     </div>
                 )}
             </div>
 
-            {/* ini info bukunya */}
-            <div className="p-4">
-                <div className="h-14"> 
-                    <h2 className="line-clamp-2 text-lg font-bold">
-                    {buku.judul}
-                </h2>
+            <div className="p-3.5 sm:p-4">
+                <div className="min-h-12">
+                    <h2 className="line-clamp-2 text-base font-bold leading-6 text-[#29465f] sm:text-lg">
+                        {buku.judul}
+                    </h2>
                 </div>
-                <p className="mt-1 text-sm text-gray-500">{ buku.penulis }</p>
 
-                <div className="mt-3 flex flex-col gap-2 items-center justify-between">
-                    <span className="rounded-lg bg-sky-100 px-3 py-1 text-xs font-medium text-gray-700">{ buku.kategori }</span>
-                    <span className="text-xs text-gray-500">{ buku.tahun }</span>
+                <p className="mt-1 text-sm text-[#7892ad]">
+                    {buku.penulis}
+                </p>
+
+                <div className="mt-3 flex min-h-7 flex-wrap items-center justify-between gap-2">
+                    <span className="rounded-md bg-[#edf4fb] px-2.5 py-1 text-[11px] font-semibold text-[#4e7fab]">
+                        {buku.kategori || "Lainnya"}
+                    </span>
+
+                    <span className="text-xs tabular-nums text-[#7892ad]">
+                        {buku.tahun || buku.tahun_terbit || "-"}
+                    </span>
                 </div>
 
                 <Link
                     to={`/buku/${buku.id}`}
-                    className="block mt-4 w-full rounded-xl border border-sky-200 py-2 text-center text-sm font-medium transition hover:bg-sky-100">
+                    className="mt-3 block w-full rounded-lg border border-[#c5d8ec] py-2 text-center text-sm font-semibold text-[#4e7fab] transition-colors duration-150 hover:bg-[#eaf4ff] motion-reduce:transition-none"
+                >
                     Lihat Detail
                 </Link>
             </div>
-            
-            </div>
-    )
+        </article>
+    );
 }

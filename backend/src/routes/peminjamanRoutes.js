@@ -19,11 +19,41 @@ router.post("/", authMiddleware, async (req, res) => {
         !tanggal_pinjam ||
         !tanggal_kembali
     ) {
-        res.status(400).json({
+        return res.status(400).json({
             message: "Semua data peminjaman wajib diisi"
         })
     }
 
+    // validasi format tanggal
+    const tanggalPinjam = new Date(tanggal_pinjam);
+    const tanggalKembali = new Date(tanggal_kembali);
+
+    if (
+        Number.isNaN(tanggalPinjam.getTime()) ||
+        Number.isNaN(tanggalKembali.getTime())
+    ) {
+        return res.status(400).json({
+            message: "Format tanggal tidak valid"
+        });
+    }
+
+    if (tanggalKembali < tanggalPinjam) {
+        return res.status(400).json({
+            message: "Tanggal kembali tidak boleh sebelum tanggal pinjam"
+        });
+    }
+        
+    const sekarang = new Date();
+ 
+    sekarang.setHours(0, 0, 0, 0);
+    tanggalPinjam.setHours(0, 0, 0, 0);
+
+    if (tanggalPinjam < sekarang) {
+        return res.status(400).json({
+            message: "Tanggal pinjam tidak boleh sebelum hari ini"
+        });
+    }
+        
     // mengambil user id dari JWT
     const userId = req.user.id;
 
@@ -70,9 +100,10 @@ router.post("/", authMiddleware, async (req, res) => {
     // cek stok bukunya dulu
     if (dataBuku.stock <= 0) {
         await connection.rollback();
-        return res.status(401).json({
+
+        return res.status(400).json({
             message: "Stok buku sedang kosong"
-        })
+        });
     }
 
     // simpan data peminjaman
@@ -92,7 +123,12 @@ router.post("/", authMiddleware, async (req, res) => {
     // kurangi stok
     await connection.query(
         `UPDATE buku
-        SET stock = stock - 1
+        SET
+            stock = stock - 1,
+            tersedia = CASE
+                WHEN stock - 1 > 0 THEN 1
+                ELSE 0
+            END
         WHERE id = ?`,
         [buku_id]
     );
@@ -192,18 +228,20 @@ router.put("/:id/kembalikan", authMiddleware, async (req, res) => {
 
     // Ubah status peminjaman
     await connection.query(
-      `UPDATE peminjaman
-       SET status = 'dikembalikan'
-       WHERE id = ?`,
-      [id]
+        `UPDATE peminjaman
+        SET status = 'dikembalikan'
+        WHERE id = ?`,
+        [id]
     );
 
     // Tambahkan stock buku
     await connection.query(
-      `UPDATE buku
-       SET stock = stock + 1
-       WHERE id = ?`,
-      [dataPeminjaman.buku_id]
+        `UPDATE buku
+        SET
+            stock = stock + 1,
+            tersedia = 1
+        WHERE id = ?`,
+        [dataPeminjaman.buku_id]
     );
 
     // Simpan perubahan

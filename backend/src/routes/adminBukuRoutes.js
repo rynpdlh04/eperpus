@@ -1,9 +1,12 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
 
 const db = require("../config/database");
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
 const upload = require("../config/upload");
+
 
 const router = express.Router();
 
@@ -14,32 +17,91 @@ const router = express.Router();
 // =====================================================
 
 router.get(
-    "/",
-    authMiddleware,
-    adminMiddleware,
-    async (req, res) => {
+  "/",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const page = Math.max(
+        parseInt(req.query.page) || 1,
+        1
+      );
 
-        try {
+      const limit = Math.min(
+        parseInt(req.query.limit) || 10,
+        50
+      );
 
-            const [rows] = await db.query(
-                `SELECT *
-                 FROM buku
-                 ORDER BY id DESC`
-            );
+      const search = (req.query.search || "").trim();
 
-            res.json(rows);
+      const offset = (page - 1) * limit;
 
-        } catch (error) {
+      let whereClause = "";
+      let params = [];
 
-            console.error(error);
+      if (search) {
+        whereClause = `
+          WHERE
+            judul LIKE ?
+            OR penulis LIKE ?
+            OR kode_buku LIKE ?
+            OR kategori LIKE ?
+        `;
 
-            res.status(500).json({
-                message: "Gagal mengambil data buku"
-            });
+        const searchValue = `%${search}%`;
 
+        params = [
+          searchValue,
+          searchValue,
+          searchValue,
+          searchValue
+        ];
+      }
+
+      // Hitung jumlah seluruh data yang sesuai pencarian
+      const [countRows] = await db.query(
+        `
+        SELECT COUNT(*) AS total
+        FROM buku
+        ${whereClause}
+        `,
+        params
+      );
+
+      const total = countRows[0].total;
+
+      // Ambil data sesuai halaman
+      const [rows] = await db.query(
+        `
+        SELECT *
+        FROM buku
+        ${whereClause}
+        ORDER BY id DESC
+        LIMIT ? OFFSET ?
+        `,
+        [...params, limit, offset]
+      );
+
+      const totalPages = Math.ceil(total / limit);
+
+      res.json({
+        data: rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages
         }
+      });
 
+    } catch (error) {
+      console.error(error);
+
+      res.status(500).json({
+        message: "Gagal mengambil data buku"
+      });
     }
+  }
 );
 
 
@@ -94,13 +156,6 @@ router.post(
             );
 
 
-            if (existingBook.length > 0) {
-
-                return res.status(409).json({
-                    message: "Kode buku sudah digunakan"
-                });
-
-            }
 
 
             const [result] = await db.query(
@@ -190,25 +245,6 @@ router.put(
 
                 return res.status(404).json({
                     message: "Buku tidak ditemukan"
-                });
-
-            }
-
-
-            // Cek kode buku digunakan buku lain
-            const [duplicateCode] = await db.query(
-                `SELECT id
-                 FROM buku
-                 WHERE kode_buku = ?
-                 AND id != ?`,
-                [kode_buku, id]
-            );
-
-
-            if (duplicateCode.length > 0) {
-
-                return res.status(409).json({
-                    message: "Kode buku sudah digunakan oleh buku lain"
                 });
 
             }
@@ -331,18 +367,20 @@ router.post(
         return res.status(400).json({
           message: "File cover wajib dipilih"
         });
-      }
-
-      const [books] = await db.query(
-        "SELECT id FROM buku WHERE id = ?",
+        }
+        
+    const [books] = await db.query(
+        "SELECT id, cover FROM buku WHERE id = ?",
         [id]
-      );
-
+        );
+        
       if (books.length === 0) {
         return res.status(404).json({
           message: "Buku tidak ditemukan"
         });
-      }
+        }
+        
+    const oldCover = books[0].cover;
 
       const coverPath =
         `/uploads/${req.file.filename}`;
@@ -354,6 +392,18 @@ router.post(
         [coverPath, id]
       );
 
+        if (oldCover && oldCover.startsWith("/uploads/")) {
+        const oldFilePath = path.join(
+            __dirname,
+            "../../",
+            oldCover
+        );
+
+        if (fs.existsSync(oldFilePath)) {
+            fs.unlinkSync(oldFilePath);
+        }
+        }
+        
       res.json({
         message: "Cover berhasil diupload",
         cover: coverPath

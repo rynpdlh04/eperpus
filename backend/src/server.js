@@ -10,17 +10,32 @@ const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const adminBukuRoutes = require("./routes/adminBukuRoutes");
 const adminPeminjamanRoutes = require("./routes/adminPeminjamanRoutes");
+const adminUsersRoutes = require("./routes/adminUsersRoutes");
 
 const cors = require('cors');
 const app = express();
 const port = 3000;
 
-app.use(cors());
+
+
+app.use(
+  cors({
+    origin: "https://forecast-burns-lab-turner.trycloudflare.com",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(express.json());
 
 app.use(
   "/uploads",
   express.static(path.join(__dirname, "../uploads"))
+);
+
+app.use(
+  "/api/admin/users",
+  adminUsersRoutes
 );
 
 app.use(

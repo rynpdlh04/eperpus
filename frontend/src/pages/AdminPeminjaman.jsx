@@ -8,119 +8,197 @@ import {
 import { Link } from "react-router-dom";
 
 import AdminSidebar from "../components/AdminSidebar";
+import useSidebarLayout from "../contexts/useSidebarLayout";
+
+async function parseApiResponse(response) {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (!contentType.includes("application/json")) {
+    const responseText = await response.text();
+    const detail = responseText.replace(/<[^>]*>/g, " ").trim().slice(0, 120);
+
+    throw new Error(
+      `Server mengirim respons non-JSON (HTTP ${response.status}). ${detail}`
+    );
+  }
+
+  return response.json();
+}
 
 function AdminPeminjaman() {
+  const { adminSidebarCollapsed } = useSidebarLayout();
 
-  const [peminjaman, setPeminjaman] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-
+    const [peminjaman, setPeminjaman] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState("");
+    const [filterStatus, setFilterStatus] = useState("semua");
+    const API_URL = import.meta.env.VITE_API_URL;
 
   // ======================================
   // AMBIL DATA PEMINJAMAN
   // ======================================
 
-  const fetchPeminjaman = async () => {
+    const fetchPeminjaman = async () => {
 
     try {
 
-      const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token");
 
-      const response = await fetch(
-        "http://localhost:3000/api/admin/peminjaman",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-          "Gagal mengambil data peminjaman"
+        const response = await fetch(
+            `${API_URL}/api/admin/peminjaman`,
+            {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+            }
         );
-      }
 
-      setPeminjaman(data);
+        const data = await parseApiResponse(response);
 
-    } catch (error) {
+        if (!response.ok) {
+            throw new Error(
+            data.message ||
+            "Gagal mengambil data peminjaman"
+            );
+        }
 
-      console.error(error);
+        setPeminjaman(data);
 
-      alert(error.message);
+        } catch (error) {
 
-    } finally {
+        console.error(error);
 
-      setLoading(false);
+        alert(error.message);
+
+        } finally {
+
+        setLoading(false);
 
     }
-  };
+    };
 
 
-  useEffect(() => {
-    fetchPeminjaman();
-  }, []);
+    useEffect(() => {
+        fetchPeminjaman();
+    }, []);
 
 
   // ======================================
   // SEARCH
   // ======================================
 
-  const filteredPeminjaman = peminjaman.filter(
+    const filteredPeminjaman = peminjaman.filter(
     (item) => {
 
-      const keyword =
+        const keyword =
         search.toLowerCase();
 
-      return (
+        return (
         item.nama_peminjam
-          ?.toLowerCase()
-          .includes(keyword) ||
+            ?.toLowerCase()
+            .includes(keyword) ||
 
         item.judul
-          ?.toLowerCase()
-          .includes(keyword) ||
+            ?.toLowerCase()
+            .includes(keyword) ||
 
         item.kode_buku
-          ?.toLowerCase()
-          .includes(keyword)
-      );
+            ?.toLowerCase()
+            .includes(keyword)
+        );
     }
-  );
+    );
+
+    const peminjamanFiltered = peminjaman.filter((item) => {
+    const status = item.status?.toLowerCase();
+
+    const terlambat =
+        status === "dipinjam" &&
+        new Date(item.tanggal_kembali).getTime() <
+        new Date().setHours(0, 0, 0, 0);
+
+    if (filterStatus === "semua") {
+        return true;
+    }
+
+    if (filterStatus === "terlambat") {
+        return terlambat;
+    }
+
+    return status === filterStatus;
+    });
+
+
 
 
   // ======================================
   // FORMAT TANGGAL
   // ======================================
 
-  const formatTanggal = (tanggal) => {
+    const formatTanggal = (tanggal) => {
 
     if (!tanggal) {
-      return "-";
+    return "-";
     }
 
     return new Date(tanggal).toLocaleDateString(
-      "id-ID",
-      {
-        day: "2-digit",
-        month: "short",
-        year: "numeric"
-      }
+        "id-ID",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+        }
     );
-  };
+    };
+    
+    const handleReturn = async (item) => {
+    const yakin = window.confirm(
+    `Apakah buku "${item.judul}" akan dikembalikan?`
+    );
+
+    if (!yakin) {
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem("token");
+
+        const response = await fetch(
+        `${API_URL}/api/admin/peminjaman/${item.id}/kembalikan`,
+        {
+            method: "PUT",
+            headers: {
+            Authorization: `Bearer ${token}`
+            }
+        }
+    );
+
+    const data = await parseApiResponse(response);
+
+    if (!response.ok) {
+      throw new Error(data.message || "Gagal mengembalikan buku");
+    }
+
+    alert(data.message);
+
+    fetchPeminjaman();
+
+  } catch (error) {
+    console.error(error);
+
+    alert(error.message);
+  }
+};
 
 
   return (
 
-    <div className="min-h-screen bg-sky-50 md:ml-64">
+    <div className={`page-enter min-h-screen bg-[#f4f8fd] pb-24 md:pb-6 ${adminSidebarCollapsed ? "md:ml-19.5" : "md:ml-58"}`}>
 
       <AdminSidebar />
 
 
-      <main className="p-6">
+      <main className="p-4 sm:p-6">
 
         <div className="mx-auto max-w-7xl">
 
@@ -183,10 +261,31 @@ function AdminPeminjaman() {
 
           </div>
 
+            <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
+            {[
+                { label: "Semua", value: "semua" },
+                { label: "Dipinjam", value: "dipinjam" },
+                { label: "Dikembalikan", value: "dikembalikan" },
+                { label: "Terlambat", value: "terlambat" },
+            ].map((filter) => (
+                <button
+                key={filter.value}
+                onClick={() => setFilterStatus(filter.value)}
+                className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition ${
+                    filterStatus === filter.value
+                    ? "bg-sky-600 text-white"
+                    : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
+                }`}
+                >
+                {filter.label}
+                </button>
+            ))}
+            </div>
+
 
           {/* TABLE */}
 
-          <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+          <div className="admin-table-wrap mt-4">
 
             {loading ? (
 
@@ -208,7 +307,7 @@ function AdminPeminjaman() {
 
               <div className="overflow-x-auto">
 
-                <table className="w-full text-left">
+                <table className="admin-table admin-table--wide">
 
                   <thead className="border-b bg-gray-50">
 
@@ -245,118 +344,128 @@ function AdminPeminjaman() {
 
                   <tbody className="divide-y">
 
-                    {filteredPeminjaman.map(
-                      (item) => (
+                    {peminjamanFiltered.map(
+                        (item) => {
+                            const statusAsli = item.status?.toLowerCase();
 
-                        <tr
-                          key={item.id}
-                          className="transition hover:bg-gray-50"
-                        >
+                            const isTerlambat =
+                                statusAsli === "dipinjam" &&
+                                new Date(item.tanggal_kembali).getTime() <
+                                new Date().setHours(0, 0, 0, 0);
 
-                          {/* PEMINJAM */}
+                            const labelStatus = isTerlambat
+                                ? "Terlambat"
+                                : statusAsli === "dikembalikan"
+                                    ? "Dikembalikan"
+                                    : "Dipinjam";
+                        
+                        
+                            return (
 
-                          <td className="px-5 py-4">
+                                <tr
+                                    key={item.id}
+                                    className="transition border-b border-gray-300 hover:bg-gray-50"
+                                >
 
-                            <p className="font-semibold">
-                              {item.nama_peminjam}
-                            </p>
+                                    {/* PEMINJAM */}
 
-                            <p className="mt-1 text-xs text-gray-400">
-                              ID #{item.user_id}
-                            </p>
+                                    <td className="px-5 py-4">
 
-                          </td>
+                                        <p className="font-semibold">
+                                            {item.nama_peminjam}
+                                        </p>
 
+                                        <p className="mt-1 text-xs text-gray-400">
+                                            ID #{item.user_id}
+                                        </p>
 
-                          {/* BUKU */}
-
-                          <td className="px-5 py-4">
-
-                            <p className="font-semibold">
-                              {item.judul}
-                            </p>
-
-                            <p className="mt-1 text-xs text-gray-400">
-                              {item.kode_buku}
-                            </p>
-
-                          </td>
-
-
-                          {/* TANGGAL PINJAM */}
-
-                          <td className="px-5 py-4 text-sm text-gray-600">
-
-                            {formatTanggal(
-                              item.tanggal_pinjam
-                            )}
-
-                          </td>
+                                    </td>
 
 
-                          {/* BATAS KEMBALI */}
+                                    {/* BUKU */}
 
-                          <td className="px-5 py-4 text-sm text-gray-600">
+                                    <td className="px-5 py-4">
 
-                            {formatTanggal(
-                              item.tanggal_kembali
-                            )}
+                                        <p className="font-semibold">
+                                            {item.judul}
+                                        </p>
 
-                          </td>
+                                        <p className="mt-1 text-xs text-gray-400">
+                                            {item.kode_buku}
+                                        </p>
 
-
-                          {/* STATUS */}
-
-                          <td className="px-5 py-4">
-
-                            <span
-                              className={`rounded-lg px-3 py-1 text-xs font-semibold ${
-                                item.status ===
-                                "dipinjam"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-green-100 text-green-700"
-                              }`}
-                            >
-
-                              {item.status}
-
-                            </span>
-
-                          </td>
+                                    </td>
 
 
-                          {/* AKSI */}
+                                    {/* TANGGAL PINJAM */}
 
-                          <td className="px-5 py-4">
+                                    <td className="px-5 py-4 text-sm text-gray-600">
 
-                            {item.status ===
-                            "dipinjam" ? (
+                                        {formatTanggal(
+                                            item.tanggal_pinjam
+                                        )}
 
-                              <button
-                                className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-600 hover:bg-green-100"
-                              >
+                                    </td>
 
-                                <RotateCcw
-                                  size={16}
-                                />
 
-                                Kembalikan
+                                    {/* BATAS KEMBALI */}
 
-                              </button>
+                                    <td className="px-5 py-4 text-sm text-gray-600">
 
-                            ) : (
+                                        {formatTanggal(
+                                            item.tanggal_kembali
+                                        )}
 
-                              <span className="text-sm text-gray-400">
-                                Selesai
-                              </span>
+                                    </td>
 
-                            )}
 
-                          </td>
+                                    {/* STATUS */}
+                            
+                                    <td className="px-5 py-4">
 
-                        </tr>
+                                        <span
+                                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${isTerlambat
+                                                ? "bg-red-100 text-red-700"
+                                                : statusAsli === "dikembalikan"
+                                                    ? "bg-green-100 text-green-700"
+                                                    : "bg-yellow-100 text-yellow-700"
+                                                }`}
+                                        >
+                                            {labelStatus}
+                                        </span>
 
-                      )
+                                    </td>
+
+
+                                    {/* AKSI */}
+
+                                    <td className="px-5 py-4">
+
+                                        {item.status ===
+                                            "dipinjam" ? (
+
+                                            <button
+                                                onClick={() => handleReturn(item)}
+                                                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+                                            >
+                                                <RotateCcw size={16} />
+                                                Kembalikan
+                                            </button>
+
+                                        ) : (
+
+                                            <span className="text-sm text-gray-400">
+                                                Selesai
+                                            </span>
+
+                                        )}
+
+                                    </td>
+
+                                </tr>
+                        
+                            )
+                        }
                     )}
 
                   </tbody>

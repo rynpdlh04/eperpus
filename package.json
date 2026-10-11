@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "dev": "npm --prefix backend run dev"
+  },
   "dependencies": {
     "react-router-dom": "^7.18.3"
   }

@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    allowedHosts: ["forecast-burns-lab-turner.trycloudflare.com"],
     proxy: {
       '/uploads': {
         target: 'http://localhost:3000',

@@ -54,5 +54,82 @@ router.get(
   }
 );
 
+router.put(
+  "/:id/kembalikan",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    const connection = await db.getConnection();
+
+    try {
+      const { id } = req.params;
+
+      await connection.beginTransaction();
+
+      // Cari data peminjaman
+      const [peminjaman] = await connection.query(
+        `SELECT *
+         FROM peminjaman
+         WHERE id = ?
+         FOR UPDATE`,
+        [id]
+      );
+
+      if (peminjaman.length === 0) {
+        await connection.rollback();
+
+        return res.status(404).json({
+          message: "Data peminjaman tidak ditemukan"
+        });
+      }
+
+      const dataPeminjaman = peminjaman[0];
+
+      // Cek apakah sudah dikembalikan
+      if (dataPeminjaman.status === "dikembalikan") {
+        await connection.rollback();
+
+        return res.status(400).json({
+          message: "Buku sudah dikembalikan"
+        });
+      }
+
+      // Ubah status peminjaman
+      await connection.query(
+        `UPDATE peminjaman
+         SET status = 'dikembalikan'
+         WHERE id = ?`,
+        [id]
+      );
+
+      // Tambahkan stock buku
+      await connection.query(
+        `UPDATE buku
+         SET stock = stock + 1
+         WHERE id = ?`,
+        [dataPeminjaman.buku_id]
+      );
+
+      await connection.commit();
+
+      res.json({
+        message: "Buku berhasil dikembalikan"
+      });
+
+    } catch (error) {
+      await connection.rollback();
+
+      console.error(error);
+
+      res.status(500).json({
+        message: "Gagal mengembalikan buku"
+      });
+
+    } finally {
+      connection.release();
+    }
+  }
+);
+
 
 module.exports = router;
